@@ -7,85 +7,88 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import java.awt.Color;
 import java.awt.Graphics2D;
-import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.util.Collections;
-import java.util.HashMap;
+import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.LinkedHashMap;
-import java.util.TreeMap;
-
 import javax.imageio.ImageIO;
 import javax.servlet.ServletException;
 import javax.servlet.ServletOutputStream;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.Part;
+
 @WebServlet(
-    name = "HelloAppEngine",
+    name = "HelloAppEngineFb",
     urlPatterns = {"/hello"}
 )
-public class HelloAppEngine extends HttpServlet {
+public class HelloAppEngineFb extends HttpServlet {
 
 	@Override
 	public void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
 		
+		final String basePath = "C:/Users/anupo/Documents/MS/Web Systems/GAE1/ExerciseFB/src/main/webapp/FbExample/";
+		//final String basePath = "/tmp/";
 		OutputStream out = null;
 		InputStream filecontent = null;
-		//final String path = "C:/Users/anupo/Documents/MS/Web Systems/GAE1/ExerciseFB/src/main/webapp/";
 		final String path = System.getProperty("user.dir")+"/";
-		System.out.println(path);
+		String fileName = "input.jpg";
 		
-		//final String path = "/";
-		Part filePart = request.getPart("fileToUpload");		
-		final String fileName = getFileName(filePart);
+		// Saving selected FB image to local
+		try (BufferedInputStream inputStream = new BufferedInputStream(new URL(request.getParameter("hiddenField")).openStream());
+			FileOutputStream fileOS = new FileOutputStream(basePath + fileName)) {
+			byte data[] = new byte[1024];
+			int byteContent;
+			while ((byteContent = inputStream.read(data, 0, 1024)) != -1) {
+				fileOS.write(data, 0, byteContent);
+			}
+		} catch (IOException e) {
+			response.getOutputStream().println("<br/> ERROR: " + e.getMessage());
+		}
+				
 		try {
-			out = new FileOutputStream(new File(path +"ImageMapping/" + File.separator
-	                + fileName));
-			filecontent = filePart.getInputStream();
-	
-	        int read = 0;
-	        final byte[] bytes = new byte[1024];
-	
-	        while ((read = filecontent.read(bytes)) != -1) {
-	            out.write(bytes, 0, read);
-	        } 
-	        LinkedHashMap<String,Float> userMap = new LinkedHashMap<>();
-	     
-	        System.out.println("Calculating user image properties");
-	        DetectProperties.detectProperties(path +"ImageMapping/"+ File.separator + fileName,userMap);
+			// If uploaded file is png, convert it to jpg
+			if(fileName.contains(".png") || fileName.contains(".PNG")) {
+				System.out.println(fileName);
+				String[] fileNameParts = fileName.split("\\.");
+				ConvertPngToJpg(basePath, fileNameParts[0],fileNameParts[1]);
+				fileName = fileNameParts[0] +".jpg";
+			}
+			
+	        LinkedHashMap<String,Float> userMap = new LinkedHashMap<>();  //Order is maintained in linkedhashmap
+	        DetectProperties.detectProperties(basePath+ fileName,userMap); // Calculating user image properties
 	        
+	        // Choosing the file based on dominant color
 	        float maxVal = userMap.get("red");
-	        String mergeFilePath = "ImageMapping/red.jpg";
+	        String mergeFile = "red.jpg";
 	        if(userMap.get("green") > maxVal) {
-	        	mergeFilePath = "ImageMapping/green.jpg";
+	        	mergeFile = "green.jpg";
+	        	maxVal = userMap.get("green");
 	        }
 	        if(userMap.get("blue") > maxVal) {
-	        	mergeFilePath = "ImageMapping/blue.jpg";
+	        	mergeFile = "blue.jpg";
 	        }
+	        
+	        // Resizing both images
+	        int scaledWidth = 521;
+	        int scaledHeight = 384;
+	        System.out.println(basePath+ fileName);
+	        resize(basePath+ fileName,basePath+ fileName, scaledWidth, scaledHeight);
+	        resize(path + "ImageMapping/" + mergeFile, basePath + mergeFile, scaledWidth, scaledHeight);
 
-	        int scaledWidth = 1024;
-	        int scaledHeight = 768;
-	        resize(path + "ImageMapping/"+ File.separator + fileName, path + "ImageMapping/"+ File.separator + fileName, scaledWidth, scaledHeight);
-	        resize(path + mergeFilePath, path + mergeFilePath, scaledWidth, scaledHeight);
-
+	        // Merging user image and selected image
 	        int type;
 	        int chunkWidth, chunkHeight;
 	        BufferedImage[] buffImages = new BufferedImage[2];
-	        buffImages[0] = ImageIO.read(new File(path + "ImageMapping/"+ File.separator + fileName));
-	        buffImages[1] = ImageIO.read(new File(path + mergeFilePath));
+	        buffImages[0] = ImageIO.read(new File(basePath + fileName));
+	        buffImages[1] = ImageIO.read(new File(basePath + mergeFile));
 	        type = buffImages[0].getType();
 	        chunkWidth = buffImages[0].getWidth();
 	        chunkHeight = buffImages[0].getHeight();
@@ -95,14 +98,14 @@ public class HelloAppEngine extends HttpServlet {
 	        
 	        finalImg.createGraphics().drawImage(buffImages[0],0,0, null);
 	        finalImg.createGraphics().drawImage(buffImages[1],chunkWidth,0, null);
-	        String basePath = null;
-			ImageIO.write(finalImg, "jpg", new File(basePath + "finalImg.jpg"));
+	        ImageIO.write(finalImg, "jpg", new File(basePath + "finalImg.jpg"));
 	        
 	        response.setContentType("image/jpg");  
-	        ServletOutputStream sout;  //taking final image to servlet output stream
+	        ServletOutputStream sout;   //taking final image to servlet output stream
 	        sout = response.getOutputStream();  
 	        FileInputStream fin = new FileInputStream(basePath + "finalImg.jpg");  
-	          
+	        
+	        
 	        BufferedInputStream bin = new BufferedInputStream(fin);  
 	        BufferedOutputStream bout = new BufferedOutputStream(sout);  
 	        int ch =0; ;  
@@ -110,21 +113,16 @@ public class HelloAppEngine extends HttpServlet {
 	        {  
 	        bout.write(ch);  
 	        }  
-	          
 	        bin.close();  
 	        fin.close();  
-	        bout.close();  
-	        sout.close();        
-	        
+	        bout.close();  	
+	        sout.close();  
+
 	        //response.getOutputStream().println("<p>Thanks! Here's the image you uploaded:</p>");
 			//response.getOutputStream().println("<img src=\""  + "/tmp/finalImg.jpg" +"?r="+Math.random() + "\" />");
-			//response.getOutputStream().println("<p>Upload another image <a href=\"http://localhost:8080/index.html\">here</a>.</p>");	
-
+			//response.getOutputStream().println("<p>Upload another image <a href=\"http://localhost:8080/index.html\">here</a>.</p>");
 			
-		} catch (FileNotFoundException fne) {
-			response.getOutputStream().println("You either did not specify a file to upload or are "
-	                + "trying to upload a file to a protected or nonexistent "
-	                + "location.");
+		} catch (Exception fne) {
 			response.getOutputStream().println("<br/> ERROR: " + fne.getMessage());
 
 	    } finally {
@@ -136,16 +134,6 @@ public class HelloAppEngine extends HttpServlet {
 	        }
 	        
 	    }
-	}
-	
-	private String getFileName(final Part part) {
-	    for (String content : part.getHeader("content-disposition").split(";")) {
-	        if (content.trim().startsWith("filename")) {
-	            return content.substring(
-	                    content.indexOf('=') + 1).trim().replace("\"", "");
-	        }
-	    }
-	    return null;
 	}
 	
 	public static void resize(String inputImagePath,
@@ -180,4 +168,35 @@ public class HelloAppEngine extends HttpServlet {
         // writes to output file
         ImageIO.write(outputImage, formatName, new File(outputImagePath));
     }
+	
+	public void ConvertPngToJpg(String path, String name, String extension) throws Exception {
+	        
+		System.out.println(path + name +"."+extension);
+		Path source = Paths.get(path + name +"."+extension);
+	        Path target = Paths.get(path + name +".jpg");
+
+	        BufferedImage originalImage = ImageIO.read(source.toFile());
+
+	        // jpg needs BufferedImage.TYPE_INT_RGB
+	        // png needs BufferedImage.TYPE_INT_ARGB
+
+	        // create a blank, RGB, same width and height
+	        BufferedImage newBufferedImage = new BufferedImage(
+	                originalImage.getWidth(),
+	                originalImage.getHeight(),
+	                BufferedImage.TYPE_INT_RGB);
+
+	        // draw a white background and puts the originalImage on it.
+	        newBufferedImage.createGraphics()
+	                .drawImage(originalImage,
+	                        0,
+	                        0,
+	                        Color.WHITE,
+	                        null);
+
+	        // save an image
+	        ImageIO.write(newBufferedImage, "jpg", target.toFile());
+	}
+
+	
 }
