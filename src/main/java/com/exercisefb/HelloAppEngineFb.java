@@ -63,25 +63,79 @@ public class HelloAppEngineFb extends HttpServlet {
 			}
 			
 	        LinkedHashMap<String,Float> userMap = new LinkedHashMap<>();  //Order is maintained in linkedhashmap
+	        LinkedHashMap<String,Float> image1Map = new LinkedHashMap<>();
+	        LinkedHashMap<String,Float> image2Map = new LinkedHashMap<>();
+	        LinkedHashMap<String,Float> image3Map = new LinkedHashMap<>();
+	        
+	        String image1URL = "gs://exercisefb_images/red.jpg";
+	        String image2URL = "gs://exercisefb_images/green.jpg";
+	        String image3URL = "gs://exercisefb_images/blue.jpg";
+	        
 	        DetectProperties.detectProperties(basePath+ fileName,userMap); // Calculating user image properties
+	        DetectPropertiesGcs.detectPropertiesGcs(image1URL,image1Map); // Calculating image1 properties
+	        DetectPropertiesGcs.detectPropertiesGcs(image2URL,image2Map); // Calculating image2 properties
+	        DetectPropertiesGcs.detectPropertiesGcs(image3URL,image3Map); // Calculating image3 properties
+	        
+	        image1URL = "https://storage.cloud.google.com/exercisefb_images/red.jpg?authuser=1";
+	        image2URL = "https://storage.cloud.google.com/exercisefb_images/green.jpg?authuser=1";
+	        image3URL = "https://storage.cloud.google.com/exercisefb_images/blue.jpg?authuser=1";
+	        
+	        float redMax = image1Map.get("red"); float greenMax = image2Map.get("red"); float blueMax = image3Map.get("red");
+	        String DominantRedURL = image1URL; String DominantGreenURL = image1URL; String DominantBlueURL = image1URL;
+	        // finding redURL
+	        if(image2Map.get("red") > redMax) {
+	        	DominantRedURL = image2URL;
+	        	redMax = userMap.get("red");
+	        }
+	        if(image2Map.get("red") > redMax) {
+	        	DominantRedURL = image3URL;
+	        }
+	        // finding greenURL
+	        if(image2Map.get("green") > greenMax) {
+	        	DominantGreenURL = image2URL;
+	        	redMax = userMap.get("red");
+	        }
+	        if(image2Map.get("green") > greenMax) {
+	        	DominantGreenURL = image3URL;
+	        }
+	        // finding blueURL
+	        if(image2Map.get("blue") > blueMax) {
+	        	DominantBlueURL = image2URL;
+	        	redMax = userMap.get("red");
+	        }
+	        if(image2Map.get("blue") > blueMax) {
+	        	DominantBlueURL = image3URL;
+	        }
 	        
 	        // Choosing the file based on dominant color
 	        float maxVal = userMap.get("red");
-	        String mergeFile = "red.jpg";
+	        String mergeFileURL = DominantRedURL;
 	        if(userMap.get("green") > maxVal) {
-	        	mergeFile = "green.jpg";
+	        	mergeFileURL = DominantGreenURL;
 	        	maxVal = userMap.get("green");
 	        }
 	        if(userMap.get("blue") > maxVal) {
-	        	mergeFile = "blue.jpg";
+	        	mergeFileURL = DominantBlueURL;
 	        }
+	        String mergeFile = "merge.jpg";
+	        
+	        try (BufferedInputStream inputStream = new BufferedInputStream(new URL(mergeFileURL).openStream());
+		    	FileOutputStream fileOS = new FileOutputStream(mergeFile)) {
+		    	byte data[] = new byte[1024];
+		   		int byteContent;
+		 		while ((byteContent = inputStream.read(data, 0, 1024)) != -1) {
+		  			fileOS.write(data, 0, byteContent);
+		   		}
+	    	} catch (IOException e) {
+		    	response.getOutputStream().println("<br/> ERROR: " + e.getMessage());
+		    }
 	        
 	        // Resizing both images
 	        int scaledWidth = 521;
 	        int scaledHeight = 384;
 	        System.out.println(basePath+ fileName);
 	        resize(basePath+ fileName,basePath+ fileName, scaledWidth, scaledHeight);
-	        resize(path + "ImageMapping/" + mergeFile, basePath + mergeFile, scaledWidth, scaledHeight);
+	        resize(basePath + mergeFile, basePath + mergeFile, scaledWidth, scaledHeight);
 
 	        // Merging user image and selected image
 	        int type;
