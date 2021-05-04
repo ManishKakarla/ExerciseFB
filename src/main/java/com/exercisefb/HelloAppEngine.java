@@ -10,7 +10,10 @@ import javax.servlet.http.HttpServletResponse;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -25,6 +28,7 @@ import java.util.TreeMap;
 
 import javax.imageio.ImageIO;
 import javax.servlet.ServletException;
+import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -86,16 +90,35 @@ public class HelloAppEngine extends HttpServlet {
 	        chunkWidth = buffImages[0].getWidth();
 	        chunkHeight = buffImages[0].getHeight();
 	        
-	      //Initializing the final image
+	        //Initializing the final image
 	        BufferedImage finalImg = new BufferedImage(chunkWidth*2, chunkHeight, type);
 	        
 	        finalImg.createGraphics().drawImage(buffImages[0],0,0, null);
 	        finalImg.createGraphics().drawImage(buffImages[1],chunkWidth,0, null);
-	        ImageIO.write(finalImg, "jpg", new File(path + "ImageMapping/" + "finalImg.jpg"));
+	        String basePath = null;
+			ImageIO.write(finalImg, "jpg", new File(basePath + "finalImg.jpg"));
 	        
-	        response.getOutputStream().println("<p>Thanks! Here's the image you uploaded:</p>");
-			response.getOutputStream().println("<img src=\"" + path + "ImageMapping/" + "finalImg.jpg" + "\" />");
-			response.getOutputStream().println("<p>Upload another image <a href=\"http://localhost:8080/index.html\">here</a>.</p>");	
+	        response.setContentType("image/jpg");  
+	        ServletOutputStream sout;  //taking final image to servlet output stream
+	        sout = response.getOutputStream();  
+	        FileInputStream fin = new FileInputStream(basePath + "finalImg.jpg");  
+	          
+	        BufferedInputStream bin = new BufferedInputStream(fin);  
+	        BufferedOutputStream bout = new BufferedOutputStream(sout);  
+	        int ch =0; ;  
+	        while((ch=bin.read())!=-1)  
+	        {  
+	        bout.write(ch);  
+	        }  
+	          
+	        bin.close();  
+	        fin.close();  
+	        bout.close();  
+	        sout.close();        
+	        
+	        //response.getOutputStream().println("<p>Thanks! Here's the image you uploaded:</p>");
+			//response.getOutputStream().println("<img src=\""  + "/tmp/finalImg.jpg" +"?r="+Math.random() + "\" />");
+			//response.getOutputStream().println("<p>Upload another image <a href=\"http://localhost:8080/index.html\">here</a>.</p>");	
 
 			
 		} catch (FileNotFoundException fne) {
@@ -116,7 +139,6 @@ public class HelloAppEngine extends HttpServlet {
 	}
 	
 	private String getFileName(final Part part) {
-	    final String partHeader = part.getHeader("content-disposition");
 	    for (String content : part.getHeader("content-disposition").split(";")) {
 	        if (content.trim().startsWith("filename")) {
 	            return content.substring(
